@@ -7,7 +7,6 @@ import (
 	"github.com/rcrowley/go-metrics"
 	log "github.com/sirupsen/logrus"
 	"github.com/ybriffa/metrics/driver"
-	_ "github.com/ybriffa/metrics/driver/logrus"
 )
 
 var (
