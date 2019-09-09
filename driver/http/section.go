@@ -1,8 +1,7 @@
 package http
 
 import (
-	"encoding/json"
-	"net/http"
+	"errors"
 	"sync"
 
 	"github.com/rcrowley/go-metrics"
@@ -22,20 +21,14 @@ func (s *section) setRegistry(registry metrics.Registry) {
 	s.registry = registry
 }
 
-func (s *section) serveHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *section) getMetrics() (interface{}, error) {
 	s.m.RLock()
 	registry := s.registry
 	s.m.RUnlock()
 
 	if registry == nil {
-		http.Error(w, "nil registry", http.StatusInternalServerError)
-		return
+		return nil, errors.New("nil registry")
 	}
 
-	content, err := json.Marshal(registry.GetAll())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Write(content)
+	return registry.GetAll(), nil
 }

@@ -26,8 +26,9 @@ func init() {
 	driver.Register("http", driver.FactoryFunc(factory))
 
 	handler.treemux.RedirectBehavior = treemux.UseHandler
-	handler.treemux.Handle("GET", "/", handler.listSections)
-	handler.treemux.Handle("GET", "/:name", handler.showSection)
+	handler.treemux.Handle("GET", "/sections", handler.listSections)
+	handler.treemux.Handle("GET", "/sections/metrics", handler.expandSections)
+	handler.treemux.Handle("GET", "/section/:name", handler.showSection)
 }
 
 // factory is the function creating a new OpenTSDB Sender through the driver.Factory
@@ -37,7 +38,6 @@ func factory(name string) (driver.Driver, error) {
 
 func (hd *httpDriver) listSections(w http.ResponseWriter, r *http.Request, _ map[string]string) {
 	names := []string{}
-
 	hd.sections.Range(func(k, _ interface{}) bool {
 		names = append(names, k.(string))
 		return true
@@ -45,6 +45,23 @@ func (hd *httpDriver) listSections(w http.ResponseWriter, r *http.Request, _ map
 
 	e := json.NewEncoder(w)
 	e.Encode(names)
+}
+
+func (hd *httpDriver) expandSections(w http.ResponseWriter, r *http.Request, _ map[string]string) {
+	result := map[string]interface{}{}
+
+	hd.sections.Range(func(k, v interface{}) bool {
+		section := v.(*section)
+
+		metrics, err := section.getMetrics()
+		if err == nil {
+			result[k.(string)] = metrics
+		}
+		return true
+	})
+
+	e := json.NewEncoder(w)
+	e.Encode(result)
 }
 
 func (hd *httpDriver) showSection(w http.ResponseWriter, r *http.Request, args map[string]string) {
@@ -60,7 +77,14 @@ func (hd *httpDriver) showSection(w http.ResponseWriter, r *http.Request, args m
 		return
 	}
 
-	section.serveHTTP(w, r)
+	m, err := section.getMetrics()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	e := json.NewEncoder(w)
+	e.Encode(m)
 }
 
 func (hd *httpDriver) Send(registries []*driver.Registry) error {
