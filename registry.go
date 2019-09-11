@@ -47,7 +47,7 @@ func RegistryFromStruct(s interface{}) (metrics.Registry, error) {
 
 		// Checking if the variable is settable, otherwise does not interest us
 		if !fieldValue.CanSet() {
-			log.Infof("[metrics] cannot set field %s, skipping ", field.Name)
+			log.Debugf("[metrics] cannot set field %s, skipping ", field.Name)
 			continue
 		}
 
@@ -65,7 +65,7 @@ func RegistryFromStruct(s interface{}) (metrics.Registry, error) {
 		// Instanciating the correct type of metric and pushing it in the struct
 		newVar, err := metricFromField(fieldValue, field.Tag)
 		if err != nil {
-			log.Warnf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
+			log.Debugf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
 			continue
 		}
 		fieldValue.Set(reflect.ValueOf(newVar).Convert(fieldValue.Type()))

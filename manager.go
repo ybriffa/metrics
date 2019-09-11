@@ -61,7 +61,7 @@ func (m *manager) run() {
 	}
 
 	m.wg.Wait()
-	log.Info("[metrics] stopped")
+	log.Debug("[metrics] stopped")
 }
 
 func (m *manager) sendRegisters(d driver.Driver) {
@@ -73,7 +73,7 @@ func (m *manager) sendRegisters(d driver.Driver) {
 	m.l.RUnlock()
 
 	if len(toSend) == 0 {
-		log.Error("no registry to send")
+		log.Debug("no registry to send")
 		return
 	}
 

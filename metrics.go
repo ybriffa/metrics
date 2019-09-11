@@ -27,7 +27,7 @@ func Init(appName string) error {
 			return fmt.Errorf("failed to init metrics driver %s : %s", driverName, err)
 		}
 		if s != nil {
-			log.Infof("[metrics] sender %s init", driverName)
+			log.Debugf("[metrics] sender %s init", driverName)
 			defaultManager.senders = append(defaultManager.senders, s)
 		}
 	}
