@@ -49,7 +49,7 @@ func (s *section) getGTS() ([]*GTS, error) {
 	}
 
 	series := []*GTS{}
-	now := time.Now().Unix()
+	now := time.Now().UnixNano() / int64(time.Millisecond)
 	var errs []error
 	registry.Each(func(name string, i interface{}) {
 		name = fmt.Sprintf("%s_%s", s.name, name)
