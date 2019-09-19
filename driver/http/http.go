@@ -3,7 +3,9 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 
@@ -73,28 +75,33 @@ func (hd *httpDriver) expandSections(w http.ResponseWriter, r *http.Request, m m
 }
 
 func (hd *httpDriver) expandSectionsPrometheus(w http.ResponseWriter, r *http.Request, m map[string]string) {
-	var b bytes.Buffer
 	var itError error
 
+	metrics := []*GTS{}
 	hd.sections.Range(func(k, v interface{}) bool {
 		section := v.(*section)
 
-		metrics, err := section.getGTS()
+		gts, err := section.getGTS()
 		if err != nil {
 			itError = err
 			return false
 		}
 
-		for _, metric := range metrics {
-			b.Write(metric.Encode())
-		}
-
+		metrics = append(metrics, gts...)
 		return true
 	})
 
 	if itError != nil {
 		http.Error(w, itError.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	var b bytes.Buffer
+	sort.SliceStable(metrics, func(i, j int) bool {
+		return metrics[i].Name < metrics[j].Name
+	})
+	for _, metric := range metrics {
+		b.Write(metric.Encode())
 	}
 
 	w.Write(b.Bytes())
@@ -134,7 +141,8 @@ func (hd *httpDriver) Send(registries []*driver.Registry) error {
 	// update the metrics.Registry of the section.
 	var registriesSent []string
 	for _, registry := range registries {
-		sectionRaw, loaded := hd.sections.LoadOrStore(registry.Name, &section{
+		id := hd.computeSectionID(registry.Name, registry.Tags)
+		sectionRaw, loaded := hd.sections.LoadOrStore(id, &section{
 			name:     registry.Name,
 			registry: registry.Registry,
 			tags:     registry.Tags,
@@ -144,7 +152,7 @@ func (hd *httpDriver) Send(registries []*driver.Registry) error {
 			sectionRaw.(*section).setRegistry(registry.Registry)
 		}
 		// Save the name of the section to know which one to delete after
-		registriesSent = append(registriesSent, registry.Name)
+		registriesSent = append(registriesSent, id)
 	}
 
 	// Range over all the sections to compare the sections names
@@ -169,6 +177,15 @@ func (hd *httpDriver) Send(registries []*driver.Registry) error {
 	}
 
 	return nil
+}
+
+func (hd *httpDriver) computeSectionID(name string, rawTags map[string]string) string {
+	tags := []string{}
+	for k, v := range rawTags {
+		tags = append(tags, fmt.Sprintf("%s:%s", k, v))
+	}
+	sort.Stable(sort.StringSlice(tags))
+	return fmt.Sprintf("%s(%s)", name, strings.Join(tags, ","))
 }
 
 // GetHandler returns the HTTP handler to register to expose the metrics
