@@ -17,6 +17,7 @@ type httpDriver struct {
 	treemux  *treemux.TreeMux
 	sections sync.Map
 	m        sync.RWMutex
+	name     string
 }
 
 var (
@@ -37,6 +38,7 @@ func init() {
 
 // factory is the function creating a new OpenTSDB Sender through the driver.Factory
 func factory(name string) (driver.Driver, error) {
+	handler.name = name
 	return handler, nil
 }
 
@@ -143,7 +145,7 @@ func (hd *httpDriver) Send(registries []*driver.Registry) error {
 	for _, registry := range registries {
 		id := hd.computeSectionID(registry.Name, registry.Tags)
 		sectionRaw, loaded := hd.sections.LoadOrStore(id, &section{
-			name:     registry.Name,
+			name:     fmt.Sprintf("%s_%s", hd.name, registry.Name),
 			registry: registry.Registry,
 			tags:     registry.Tags,
 		})
