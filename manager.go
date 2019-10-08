@@ -107,7 +107,7 @@ func (m *manager) deleteRegistry(name string, tags map[string]string) error {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	if _, exists := m.registers[name]; !exists {
+	if _, exists := m.registers[registryID(name, tags)]; !exists {
 		return ErrNotRegistered
 	}
 
