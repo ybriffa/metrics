@@ -62,13 +62,19 @@ func RegistryFromStruct(s interface{}) (metrics.Registry, error) {
 		}
 		names[name] = struct{}{}
 
-		// Instanciating the correct type of metric and pushing it in the struct
-		newVar, err := metricFromField(fieldValue, field.Tag)
-		if err != nil {
-			log.Debugf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
-			continue
+		// Instantiate the correct type or use the settled one, and push it in the struct
+		var newVar interface{}
+		if !fieldValue.IsNil() {
+			newVar = fieldValue.Interface()
+		} else {
+			var err error
+			newVar, err = metricFromField(fieldValue, field.Tag)
+			if err != nil {
+				log.Debugf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
+				continue
+			}
+			fieldValue.Set(reflect.ValueOf(newVar).Convert(fieldValue.Type()))
 		}
-		fieldValue.Set(reflect.ValueOf(newVar).Convert(fieldValue.Type()))
 
 		// Add it in the registry
 		ret.Register(name, newVar)
