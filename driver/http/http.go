@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	treemux "github.com/dimfeld/httptreemux"
+	treemux "github.com/dimfeld/httptreemux/v5"
 	"github.com/ybriffa/metrics/driver"
 )
 
