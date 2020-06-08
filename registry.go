@@ -27,58 +27,70 @@ func sanitize(name string) string {
 
 // RegistryFromStruct takes a data structure and creates a registry from its fields.
 func RegistryFromStruct(s interface{}) (metrics.Registry, error) {
-	v := reflect.ValueOf(s)
-
-	if v.Kind() != reflect.Ptr {
-		return nil, ErrNotPointer
-	}
-
-	for v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-
-	t := v.Type()
+	types := []interface{}{s}
 	ret := metrics.NewRegistry()
 	names := map[string]struct{}{}
-	for idx := 0; idx < t.NumField(); idx++ {
-		// Getting information about the field
-		field := t.Field(idx)
-		fieldValue := v.Field(idx)
 
-		// Checking if the variable is settable, otherwise does not interest us
-		if !fieldValue.CanSet() {
-			log.Debugf("[metrics] cannot set field %s, skipping ", field.Name)
-			continue
+	for len(types) > 0 {
+		v := reflect.ValueOf(types[0])
+		types = types[:len(types)-1]
+
+		if v.Kind() != reflect.Ptr {
+			return nil, ErrNotPointer
 		}
 
-		// Getting the name to register, in the tag `metrics:""` or the name of the field
-		name := field.Name
-		if tmp := field.Tag.Get("metrics"); tmp != "" {
-			name = tmp
+		for v.Kind() == reflect.Ptr {
+			v = v.Elem()
 		}
-		name = sanitize(name)
-		if _, exists := names[name]; exists {
-			return nil, ErrMetricsNameDuplicated
-		}
-		names[name] = struct{}{}
 
-		// Instantiate the correct type or use the settled one, and push it in the struct
-		var newVar interface{}
-		if !fieldValue.IsNil() {
-			newVar = fieldValue.Interface()
-		} else {
-			var err error
-			newVar, err = metricFromField(fieldValue, field.Tag)
-			if err != nil {
-				log.Debugf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
+		t := v.Type()
+		for idx := 0; idx < t.NumField(); idx++ {
+			// Getting information about the field
+			field := t.Field(idx)
+			fieldValue := v.Field(idx)
+
+			if fieldValue.Kind() == reflect.Ptr && field.Anonymous {
+				log.Debugf("[metrics] found embedded pointer %s, exploring afterwards", field.Name)
+				types = append(types, fieldValue.Interface())
 				continue
 			}
-			fieldValue.Set(reflect.ValueOf(newVar).Convert(fieldValue.Type()))
-		}
 
-		// Add it in the registry
-		ret.Register(name, newVar)
+			// Checking if the variable is settable, otherwise does not interest us
+			if !fieldValue.CanSet() {
+				log.Debugf("[metrics] cannot set field %s, skipping ", field.Name)
+				continue
+			}
+
+			// Getting the name to register, in the tag `metrics:""` or the name of the field
+			name := field.Name
+			if tmp := field.Tag.Get("metrics"); tmp != "" {
+				name = tmp
+			}
+			name = sanitize(name)
+			if _, exists := names[name]; exists {
+				return nil, ErrMetricsNameDuplicated
+			}
+			names[name] = struct{}{}
+
+			// Instantiate the correct type or use the settled one, and push it in the struct
+			var newVar interface{}
+			if !fieldValue.IsNil() {
+				newVar = fieldValue.Interface()
+			} else {
+				var err error
+				newVar, err = metricFromField(fieldValue, field.Tag)
+				if err != nil {
+					log.Debugf("[metrics] unabled to instanciate metrics from field %s : %s", field.Name, err)
+					continue
+				}
+				fieldValue.Set(reflect.ValueOf(newVar).Convert(fieldValue.Type()))
+			}
+
+			// Add it in the registry
+			ret.Register(name, newVar)
+		}
 	}
+
 	return ret, nil
 }
 
