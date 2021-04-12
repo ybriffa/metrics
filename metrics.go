@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -21,6 +22,14 @@ var (
 // If the sender is not enabled, it must returns ErrSenderDisabled.
 // Every other error must be handled and the metrics sending will not start
 func Init(appName string) error {
+	return InitWithContext(context.Background(), appName)
+}
+
+// InitWithContext starts metrics sending
+// It goes through all the drivers registered to the driver.Factory and tries to instanciate them
+// If the sender is not enabled, it must returns ErrSenderDisabled.
+// Every other error must be handled and the metrics sending will not start
+func InitWithContext(ctx context.Context, appName string) error {
 	for _, driverName := range driver.Registered() {
 		s, err := driver.New(driverName, appName)
 		if err != nil && err != driver.ErrDriverDisabled {
@@ -31,7 +40,7 @@ func Init(appName string) error {
 			defaultManager.senders = append(defaultManager.senders, s)
 		}
 	}
-	go defaultManager.run()
+	go defaultManager.run(ctx)
 	return nil
 }
 
