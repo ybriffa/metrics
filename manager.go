@@ -23,21 +23,25 @@ type manager struct {
 	senders       []driver.Driver
 	flushCh       []chan struct{}
 	flushInterval time.Duration
+	flushMutex    sync.Mutex
 
-	context       context.Context
-	cancelContext context.CancelFunc
-	wg            sync.WaitGroup
-	l             sync.RWMutex
+	wg sync.WaitGroup
+	l  sync.RWMutex
+
+	cancel context.CancelFunc
 }
 
-func (m *manager) run() {
-	m.context, m.cancelContext = context.WithCancel(context.Background())
+func (m *manager) run(ctx context.Context) {
+	ctx, cancel := context.WithCancel(ctx)
+	m.cancel = cancel
 
 	// Create a goroutine to watch every senders
 	for _, s := range m.senders {
 		m.wg.Add(1)
+		m.flushMutex.Lock()
 		flushCh := make(chan struct{}, 1)
 		m.flushCh = append(m.flushCh, flushCh)
+		m.flushMutex.Unlock()
 		go func(s driver.Driver, flushCh chan struct{}) {
 			defer m.wg.Done()
 
@@ -49,7 +53,7 @@ func (m *manager) run() {
 			// Send metrics until the context is canceled
 			for {
 				select {
-				case <-m.context.Done():
+				case <-ctx.Done():
 					return
 				case <-ticker.C:
 					m.sendRegisters(s)
@@ -116,6 +120,9 @@ func (m *manager) deleteRegistry(name string, tags map[string]string) error {
 }
 
 func (m *manager) flush() {
+	m.flushMutex.Lock()
+	defer m.flushMutex.Unlock()
+
 	for _, flushCh := range m.flushCh {
 		select {
 		case flushCh <- struct{}{}:
@@ -125,7 +132,7 @@ func (m *manager) flush() {
 }
 
 func (m *manager) stop() {
-	m.cancelContext()
+	m.cancel()
 }
 
 func registryID(name string, tags map[string]string) string {
